@@ -7,1172 +7,546 @@
   <meta name="description" content="RewindDB: State is a pure function of events. Deterministic replay, failure recovery, and state validation powered by immutable event logs." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-  <style>
-    /* ─── DESIGN TOKENS ─────────────────────────────────────────── */
-    :root {
-      --surface:            #131313;
-      --surface-low:        #1b1b1b;
-      --surface-container:  #20201f;
-      --surface-high:       #2a2a2a;
-      --surface-highest:    #353535;
-      --surface-lowest:     #0e0e0e;
-      --on-surface:         #e5e2e1;
-      --on-surface-variant: #ddc1ae;
-      --outline:            #a48c7a;
-      --outline-variant:    #564334;
-      --primary:            #ffb77d;
-      --primary-container:  #ff8c00;
-      --secondary:          #fdb881;
-      --tertiary:           #85cfff;
-      --tertiary-container: #00b5fc;
-      --error:              #ffb4ab;
-      --success:            #81c784;
-      --font-ui:            'Inter', sans-serif;
-      --font-data:          'JetBrains Mono', monospace;
-      --radius-sm:          4px;
-      --radius-md:          6px;
-      --radius-lg:          12px;
-      --radius-pill:        999px;
-      --transition:         0.18s ease;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: var(--font-ui);
-      background: var(--surface);
-      color: var(--on-surface);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow-x: hidden;
-    }
-
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: var(--surface-low); }
-    ::-webkit-scrollbar-thumb { background: var(--outline-variant); border-radius: 3px; }
-
-    .app-shell { display: flex; min-height: 100vh; }
-
-    /* ─── SIDEBAR ───────────────────────────────────────────────── */
-    .sidebar {
-      width: 220px; flex-shrink: 0;
-      background: var(--surface-container);
-      display: flex; flex-direction: column;
-      padding: 24px 0;
-      position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
-    }
-    .sidebar-brand { padding: 0 20px 28px; border-bottom: 1px solid rgba(86,67,52,0.3); }
-    .sidebar-brand .logo-mark { display: flex; align-items: center; gap: 10px; }
-    .logo-icon {
-      width: 32px; height: 32px;
-      background: linear-gradient(135deg, var(--primary-container), var(--primary));
-      border-radius: var(--radius-sm);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; color: #2f1500; font-weight: 700;
-      box-shadow: 0 0 12px rgba(255,140,0,0.3);
-    }
-    .brand-name { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
-    .brand-tag  { font-size: 10px; color: var(--outline); font-family: var(--font-data); margin-top: 2px; }
-
-    .nav-list { list-style: none; padding: 16px 0; flex: 1; }
-    .nav-item { padding: 0 12px; margin-bottom: 2px; }
-    .nav-link {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px; border-radius: var(--radius-md);
-      cursor: pointer; color: var(--on-surface-variant);
-      font-size: 13.5px; font-weight: 500;
-      transition: all var(--transition); text-decoration: none; user-select: none;
-    }
-    .nav-link:hover { background: var(--surface-high); color: var(--on-surface); }
-    .nav-link.active { background: rgba(255,140,0,0.15); color: var(--primary); }
-    .nav-link .material-icons { font-size: 18px; }
-
-    .sidebar-bottom { padding: 12px 20px; border-top: 1px solid rgba(86,67,52,0.3); }
-    .sidebar-status { margin-bottom: 8px; }
-    .status-dot {
-      display: inline-block; width: 7px; height: 7px;
-      border-radius: 50%; background: var(--success);
-      margin-right: 7px; animation: pulse-dot 2s infinite;
-    }
-    .status-dot.offline { background: var(--error); animation: none; }
-    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    .status-label { font-size: 11px; color: var(--outline); font-family: var(--font-data); }
-
-    .api-config-btn {
-      display: flex; align-items: center; gap: 6px;
-      width: 100%; padding: 6px 0;
-      background: none; border: none; cursor: pointer;
-      color: var(--outline); font-size: 11px; font-family: var(--font-data);
-      transition: color var(--transition);
-    }
-    .api-config-btn:hover { color: var(--on-surface-variant); }
-    .api-config-btn .material-icons { font-size: 13px; }
-
-    /* ─── API CONFIG MODAL ──────────────────────────────────────── */
-    .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-      z-index: 200; display: none; align-items: center; justify-content: center;
-      backdrop-filter: blur(4px);
-    }
-    .modal-backdrop.open { display: flex; }
-    .modal {
-      background: var(--surface-container);
-      border: 1px solid rgba(86,67,52,0.3);
-      border-radius: var(--radius-lg);
-      padding: 28px; width: 420px; max-width: 90vw;
-    }
-    .modal-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
-    .modal-body { margin-bottom: 20px; }
-    .modal-body p { font-size: 12px; color: var(--on-surface-variant); margin-bottom: 12px; line-height: 1.5; }
-    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-
-    /* ─── MAIN ──────────────────────────────────────────────────── */
-    .main-content { margin-left: 220px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
-
-    /* ─── OFFLINE BANNER ────────────────────────────────────────── */
-    .offline-banner {
-      display: none; align-items: center; gap: 10px;
-      background: rgba(255,180,171,0.08);
-      border-bottom: 1px solid rgba(255,180,171,0.15);
-      padding: 10px 28px; font-size: 12px;
-      color: var(--error); font-family: var(--font-data);
-    }
-    .offline-banner.show { display: flex; }
-    .offline-banner .material-icons { font-size: 16px; }
-    .offline-banner a { color: var(--primary); cursor: pointer; text-decoration: underline; }
-
-    /* ─── TOP BAR ───────────────────────────────────────────────── */
-    .topbar {
-      height: 56px; background: var(--surface-low);
-      display: flex; align-items: center; padding: 0 28px; gap: 16px;
-      position: sticky; top: 0; z-index: 50;
-    }
-    .topbar-title { font-size: 15px; font-weight: 600; flex: 1; }
-    .topbar-actions { display: flex; align-items: center; gap: 10px; }
-
-    /* ─── CHIPS ─────────────────────────────────────────────────── */
-    .chip {
-      padding: 4px 10px; border-radius: var(--radius-pill);
-      background: var(--surface-highest); font-size: 11px;
-      font-family: var(--font-data); color: var(--on-surface-variant);
-    }
-    .chip.primary { background: rgba(255,140,0,0.15); color: var(--primary); }
-    .chip.tertiary { background: rgba(0,181,252,0.12); color: var(--tertiary); }
-    .chip.success { background: rgba(76,175,80,0.12); color: var(--success); }
-    .chip.error   { background: rgba(255,180,171,0.12); color: var(--error); }
-
-    /* ─── PAGE CONTENT ──────────────────────────────────────────── */
-    .page { display: none; padding: 28px; animation: fadeIn 0.2s ease; }
-    .page.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-
-    .section-header { margin-bottom: 20px; }
-    .section-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-    .section-sub   { font-size: 13px; color: var(--outline); margin-top: 4px; }
-
-    /* ─── GRID ──────────────────────────────────────────────────── */
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-
-    /* ─── CARDS ─────────────────────────────────────────────────── */
-    .card { background: var(--surface-low); border-radius: var(--radius-lg); padding: 20px; }
-    .card-label {
-      font-size: 11px; color: var(--outline);
-      text-transform: uppercase; letter-spacing: 0.08em;
-      margin-bottom: 8px; font-family: var(--font-data);
-    }
-    .card-value {
-      font-size: 28px; font-weight: 700; color: var(--primary);
-      font-family: var(--font-data); letter-spacing: -0.02em;
-    }
-    .card-sub { font-size: 12px; color: var(--outline); margin-top: 4px; }
-
-    /* ─── BTN ───────────────────────────────────────────────────── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 9px 18px; border-radius: var(--radius-sm);
-      font-size: 13px; font-weight: 600;
-      cursor: pointer; border: none;
-      transition: all var(--transition); font-family: var(--font-ui);
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary-container), var(--primary));
-      color: #2f1500; box-shadow: 0 0 12px rgba(255,140,0,0.2);
-    }
-    .btn-primary:hover { box-shadow: 0 0 20px rgba(255,140,0,0.35); filter: brightness(1.05); }
-    .btn-primary:active { transform: scale(0.98); }
-    .btn-secondary { background: var(--surface-highest); color: var(--on-surface); }
-    .btn-secondary:hover { background: var(--surface-high); }
-    .btn-ghost { background: none; color: var(--on-surface-variant); }
-    .btn-ghost:hover { background: var(--surface-high); }
-    .btn .material-icons { font-size: 16px; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
-
-    /* ─── INPUT ─────────────────────────────────────────────────── */
-    .input-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    input[type="text"], input[type="number"], select {
-      background: var(--surface-lowest);
-      border: 1px solid rgba(86,67,52,0.4);
-      color: var(--on-surface); border-radius: var(--radius-sm);
-      padding: 8px 12px; font-size: 13px;
-      font-family: var(--font-data); outline: none;
-      transition: border-color var(--transition); min-width: 180px;
-    }
-    input[type="text"]:focus, input[type="number"]:focus, select:focus {
-      border-color: var(--primary-container);
-    }
-    select option { background: var(--surface-high); }
-    input[type="text"] { width: 100%; }
-
-    /* ─── CODE BLOCK ────────────────────────────────────────────── */
-    .code-block {
-      background: var(--surface-lowest); border-radius: var(--radius-sm);
-      padding: 14px 16px; font-family: var(--font-data); font-size: 12px;
-      color: var(--on-surface); overflow-x: auto; line-height: 1.6;
-      max-height: 340px; overflow-y: auto; white-space: pre-wrap;
-    }
-    .code-block .key   { color: var(--tertiary); }
-    .code-block .value { color: var(--primary); }
-    .code-block .str   { color: var(--success); }
-
-    /* ─── EVENT LOG ─────────────────────────────────────────────── */
-    .event-list { display: flex; flex-direction: column; gap: 8px; }
-    .event-item {
-      background: var(--surface-container); border-radius: var(--radius-md);
-      padding: 12px 14px; display: flex; align-items: flex-start; gap: 12px;
-    }
-    .event-stripe { width: 2px; border-radius: 2px; align-self: stretch; flex-shrink: 0; }
-    /* BUG FIX: correct stripe color mapping */
-    .stripe-create   { background: var(--tertiary); }
-    .stripe-deposit  { background: var(--success); }
-    .stripe-withdraw { background: var(--error); }
-    .stripe-transfer { background: var(--secondary); }
-    .stripe-freeze   { background: var(--outline); }
-    .stripe-default  { background: var(--primary); }
-
-    .event-content { flex: 1; min-width: 0; }
-    .event-type { font-size: 12px; font-weight: 600; font-family: var(--font-data); color: var(--primary); }
-    .event-meta { font-size: 11px; color: var(--outline); font-family: var(--font-data); margin-top: 3px; }
-    .event-data { font-size: 11px; color: var(--on-surface-variant); font-family: var(--font-data); margin-top: 6px; }
-    .event-version {
-      font-size: 11px; color: var(--outline); font-family: var(--font-data);
-      background: var(--surface-highest); padding: 2px 7px;
-      border-radius: var(--radius-pill); flex-shrink: 0;
-    }
-
-    /* ─── ACCOUNT TABLE ─────────────────────────────────────────── */
-    .account-table { width: 100%; border-collapse: collapse; }
-    .account-table th {
-      text-align: left; font-size: 11px; color: var(--outline);
-      font-family: var(--font-data); text-transform: uppercase;
-      letter-spacing: 0.06em; padding: 8px 12px;
-      border-bottom: 1px solid rgba(86,67,52,0.25);
-    }
-    .account-table td {
-      padding: 10px 12px; font-size: 13px; font-family: var(--font-data);
-      border-bottom: 1px solid rgba(86,67,52,0.1);
-    }
-    .account-table tr:last-child td { border-bottom: none; }
-    .account-table tbody tr:hover td { background: var(--surface-container); }
-    .balance-positive { color: var(--success); }
-    .balance-zero    { color: var(--outline); }
-
-    /* ─── FAILURE CARDS ─────────────────────────────────────────── */
-    .failure-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .failure-card {
-      background: var(--surface-container); border-radius: var(--radius-lg);
-      padding: 20px; border: 1px solid rgba(86,67,52,0.2);
-      transition: border-color var(--transition);
-    }
-    .failure-card:hover { border-color: rgba(255,140,0,0.3); }
-    .failure-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-    .failure-icon { width: 38px; height: 38px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 18px; }
-    .fi-crash   { background: rgba(255,180,171,0.1); color: var(--error); }
-    .fi-dup     { background: rgba(255,183,125,0.1); color: var(--primary); }
-    .fi-order   { background: rgba(133,207,255,0.1); color: var(--tertiary); }
-    .fi-corrupt { background: rgba(253,184,129,0.1); color: var(--secondary); }
-    .fi-missing { background: rgba(164,140,122,0.1); color: var(--outline); }
-    .fi-concur  { background: rgba(0,181,252,0.1); color: var(--tertiary-container); }
-    .failure-title { font-size: 14px; font-weight: 600; }
-    .failure-desc  { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; word-break: break-word; }
-    .failure-result {
-      margin-top: 12px; border-radius: var(--radius-sm);
-      padding: 10px 12px; font-size: 12px; font-family: var(--font-data);
-      display: none; word-break: break-all;
-    }
-    .failure-result.show { display: block; }
-    .result-pass { background: rgba(76,175,80,0.1); color: var(--success); border-left: 3px solid #4caf50; }
-    .result-fail { background: rgba(255,180,171,0.1); color: var(--error); border-left: 3px solid var(--error); }
-
-    /* ─── METRICS BARS ──────────────────────────────────────────── */
-    .metric-bar-container { display: flex; flex-direction: column; gap: 14px; }
-    .metric-bar-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
-    .metric-bar-label  { font-size: 12px; color: var(--on-surface-variant); }
-    .metric-bar-val    { font-size: 12px; font-family: var(--font-data); color: var(--primary); }
-    .metric-bar-track  { height: 6px; background: var(--surface-highest); border-radius: 3px; overflow: hidden; }
-    .metric-bar-fill   { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--primary-container), var(--primary)); transition: width 0.6s ease; }
-    .metric-bar-fill.teal { background: linear-gradient(90deg, #006496, var(--tertiary)); }
-
-    /* ─── TOAST ─────────────────────────────────────────────────── */
-    #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
-    .toast {
-      padding: 12px 18px; border-radius: var(--radius-md);
-      font-size: 13px; font-family: var(--font-data);
-      background: rgba(53,53,53,0.95);
-      border-left: 3px solid var(--primary); color: var(--on-surface);
-      animation: slideIn 0.2s ease; max-width: 360px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    }
-    .toast.error   { border-color: var(--error); }
-    .toast.success { border-color: #4caf50; }
-    .toast.info    { border-color: var(--tertiary); }
-    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
-
-    /* ─── SPINNER ───────────────────────────────────────────────── */
-    .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,183,125,0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ─── VALIDATION LIST ───────────────────────────────────────── */
-    .validation-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 8px; font-size: 12.5px; font-family: var(--font-data); }
-    .vi-ok      { background: rgba(76,175,80,0.08); color: var(--success); }
-    .vi-error   { background: rgba(255,180,171,0.08); color: var(--error); }
-    .vi-warning { background: rgba(255,183,125,0.08); color: var(--primary); }
-    .vi-icon    { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
-
-    .sep { height: 1px; background: rgba(86,67,52,0.2); margin: 24px 0; }
-
-    /* ─── REPLAY PROGRESS ───────────────────────────────────────── */
-    .replay-track { height: 8px; background: var(--surface-highest); border-radius: 4px; overflow: hidden; }
-    .replay-fill  { height: 100%; background: linear-gradient(90deg, var(--primary-container), var(--primary)); border-radius: 4px; transition: width 0.4s ease; }
-
-    /* ─── HERO ──────────────────────────────────────────────────── */
-    .hero-banner {
-      background: linear-gradient(135deg, rgba(255,140,0,0.06), rgba(133,207,255,0.04));
-      border: 1px solid rgba(255,140,0,0.12); border-radius: var(--radius-lg);
-      padding: 32px 36px; margin-bottom: 24px; position: relative; overflow: hidden;
-    }
-    .hero-banner::before {
-      content: ''; position: absolute; top: -60px; right: -60px;
-      width: 200px; height: 200px;
-      background: radial-gradient(circle, rgba(255,140,0,0.08), transparent 70%);
-    }
-    .hero-title {
-      font-size: 26px; font-weight: 700; letter-spacing: -0.03em;
-      background: linear-gradient(135deg, var(--on-surface), var(--primary));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text; margin-bottom: 8px;
-    }
-    .hero-sub { font-size: 14px; color: var(--on-surface-variant); max-width: 500px; line-height: 1.5; }
-    .hero-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-    .hero-eq {
-      position: absolute; right: 36px; top: 50%; transform: translateY(-50%);
-      font-size: 13px; font-family: var(--font-data);
-      color: rgba(255,183,125,0.2); line-height: 2; text-align: right; pointer-events: none;
-    }
-
-    /* ─── UTILS ─────────────────────────────────────────────────── */
-    .row { display: flex; gap: 16px; }
-    .col { flex: 1; min-width: 0; }
-    .mt-12 { margin-top: 12px; }
-    .mt-16 { margin-top: 16px; }
-    .mb-12 { margin-bottom: 12px; }
-    .mb-16 { margin-bottom: 16px; }
-    .label-sm { font-size: 11px; color: var(--outline); margin-bottom: 6px; font-family: var(--font-data); }
-    .text-primary { color: var(--primary); }
-    .text-tertiary { color: var(--tertiary); }
-    .text-error   { color: var(--error); }
-    .text-success { color: var(--success); }
-    .mono { font-family: var(--font-data); }
-    .empty-state { text-align: center; padding: 40px 20px; color: var(--outline); font-size: 13px; }
-    .empty-state .material-icons { font-size: 36px; display: block; margin-bottom: 10px; opacity: 0.4; }
-    .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; display: inline-block; vertical-align: middle; }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
 <div id="toast-container"></div>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-<!-- ─── API SETTINGS MODAL ───────────────────────────────────────── -->
-<div class="modal-backdrop" id="api-modal">
+<!-- ─── COMMAND PALETTE (Cmd+K) ──────────────────────────── -->
+<div class="cmd-bg" id="cmd-palette-bg">
+  <div class="cmd-palette" id="cmd-palette">
+    <div class="cmd-input-row">
+      <span class="material-icons cmd-icon">search</span>
+      <input class="cmd-input" id="cmd-input" type="text" placeholder="Type a command or search…" autocomplete="off" />
+      <span class="cmd-shortcut-badge">Esc</span>
+    </div>
+    <div class="cmd-results" id="cmd-results"></div>
+    <div class="cmd-footer">
+      <div class="cmd-footer-hint"><span class="cmd-key">↑↓</span> navigate</div>
+      <div class="cmd-footer-hint"><span class="cmd-key">↵</span> select</div>
+      <div class="cmd-footer-hint"><span class="cmd-key">Esc</span> close</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── G-KEY OVERLAY ─────────────────────────────────────── -->
+<div class="g-overlay" id="g-overlay">
+  <span>Go to:</span>
+  <span class="key">D</span>ashboard ·
+  <span class="key">T</span>imeline ·
+  <span class="key">R</span>eplay ·
+  <span class="key">F</span>ailure ·
+  <span class="key">V</span>alidation ·
+  <span class="key">M</span>etrics
+</div>
+
+
+<!-- ─── API MODAL ─────────────────────────────────────────── -->
+<div class="modal-bg" id="api-modal">
   <div class="modal">
     <div class="modal-title">⚙ API Connection</div>
-    <div class="modal-body">
-      <p>The backend runs locally. Set the URL below to match where your RewindDB backend is running.</p>
-      <div class="label-sm">Backend URL</div>
-      <input type="text" id="api-url-input" value="" placeholder="http://localhost:8001" />
+    <div class="modal-desc">
+      Set the backend URL. The backend runs locally on <code>localhost:8001</code>
+      and is exposed via a Serveo tunnel for judge access.
     </div>
+    <div class="field-label">Backend URL</div>
+    <input type="text" id="api-url-input" placeholder="https://…serveousercontent.com" />
     <div class="modal-actions">
       <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
       <button class="btn btn-primary" id="modal-save">
-        <span class="material-icons">save</span> Save & Reconnect
+        <span class="material-icons">save</span> Save &amp; Reconnect
       </button>
     </div>
   </div>
 </div>
 
 <div class="app-shell">
-  <!-- ─── SIDEBAR ─────────────────────────────────────────────── -->
-  <nav class="sidebar">
+
+  <!-- ─── SIDEBAR ─────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-      <div class="logo-mark">
+      <div class="logo-wrap">
         <div class="logo-icon">⟳</div>
-        <div>
+        <div class="brand-text">
           <div class="brand-name">RewindDB</div>
           <div class="brand-tag">temporal debugger</div>
         </div>
       </div>
+      <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Collapse">
+        <span class="material-icons">chevron_left</span>
+      </button>
     </div>
+
     <ul class="nav-list">
-      <li class="nav-item"><a class="nav-link active" data-page="dashboard" id="nav-dashboard"><span class="material-icons">dashboard</span> Dashboard</a></li>
-      <li class="nav-item"><a class="nav-link" data-page="timeline" id="nav-timeline"><span class="material-icons">history</span> Timeline</a></li>
-      <li class="nav-item"><a class="nav-link" data-page="replay" id="nav-replay"><span class="material-icons">play_circle</span> Replay Engine</a></li>
-      <li class="nav-item"><a class="nav-link" data-page="failure" id="nav-failure"><span class="material-icons">biotech</span> Failure Lab</a></li>
-      <li class="nav-item"><a class="nav-link" data-page="validation" id="nav-validation"><span class="material-icons">fact_check</span> State Validation</a></li>
-      <li class="nav-item"><a class="nav-link" data-page="metrics" id="nav-metrics"><span class="material-icons">query_stats</span> Metrics</a></li>
+      <li class="nav-item"><a class="nav-link active" data-page="dashboard" id="nav-dashboard"><span class="material-icons">dashboard</span><span class="nav-label">Dashboard</span></a></li>
+      <li class="nav-item"><a class="nav-link" data-page="timeline" id="nav-timeline"><span class="material-icons">history</span><span class="nav-label">Timeline</span></a></li>
+      <li class="nav-item"><a class="nav-link" data-page="replay" id="nav-replay"><span class="material-icons">play_circle</span><span class="nav-label">Replay Engine</span></a></li>
+      <li class="nav-item"><a class="nav-link" data-page="failure" id="nav-failure"><span class="material-icons">biotech</span><span class="nav-label">Failure Lab</span></a></li>
+      <li class="nav-item"><a class="nav-link" data-page="validation" id="nav-validation"><span class="material-icons">fact_check</span><span class="nav-label">Validation</span></a></li>
+      <li class="nav-item"><a class="nav-link" data-page="metrics" id="nav-metrics"><span class="material-icons">query_stats</span><span class="nav-label">Metrics</span></a></li>
     </ul>
+
     <div class="sidebar-bottom">
       <div class="sidebar-status">
-        <span class="status-dot" id="backend-status-dot"></span>
+        <span class="status-dot connecting" id="backend-status-dot"></span>
         <span class="status-label" id="backend-status-text">connecting…</span>
       </div>
-      <button class="api-config-btn" id="btn-config-api">
+      <button class="api-config-btn" id="btn-config-api" title="Configure API">
         <span class="material-icons">settings_ethernet</span>
-        <span id="api-url-display">localhost:8001</span>
+        <span class="api-url-text" id="api-url-display">localhost:8001</span>
       </button>
     </div>
   </nav>
 
-  <!-- ─── MAIN ─────────────────────────────────────────────────── -->
-  <main class="main-content">
-    <!-- Offline banner -->
+  <!-- ─── MAIN ─────────────────────────────────────────────── -->
+  <main class="main-content" id="main-content">
+
     <div class="offline-banner" id="offline-banner">
       <span class="material-icons">wifi_off</span>
-      Backend offline — start with <code style="background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:3px;">./start.sh</code> then&nbsp;<a onclick="checkHealth()">retry</a> &nbsp;·&nbsp; <a onclick="openApiModal()">change URL</a>
+      Backend offline — run
+      <code style="background:rgba(255,255,255,0.04);padding:1px 5px;border-radius:3px;margin:0 3px;">./start.sh</code>
+      then&nbsp;<a onclick="checkHealth()">retry</a>
+      &nbsp;·&nbsp;<a onclick="openApiModal()">change URL</a>
     </div>
 
-    <div class="topbar">
-      <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div class="topbar" id="topbar">
+      <button class="hamburger-btn" id="hamburger-btn" aria-label="Menu">
+        <span class="material-icons">menu</span>
+      </button>
+      <div class="topbar-breadcrumb">
+        <span class="breadcrumb-root">RewindDB</span>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-page" id="breadcrumb-page">Dashboard</span>
+      </div>
       <div class="topbar-actions">
-        <span class="chip tertiary mono" id="topbar-stream-count">— streams</span>
-        <span class="chip primary mono" id="topbar-event-count">— events</span>
-        <button class="btn btn-secondary" id="btn-seed" style="padding:6px 12px;font-size:12px;">
-          <span class="material-icons" style="font-size:14px;">add_circle</span> Seed
+        <span class="chip chip-sky mono" id="topbar-stream-count">— streams</span>
+        <span class="chip chip-amber mono" id="topbar-event-count">— events</span>
+        <button class="shortcut-btn" id="btn-cmd-palette" title="Open command palette">
+          <span class="material-icons" style="font-size:13px;">terminal</span>
+          <span>⌘K</span>
         </button>
-        <button class="btn btn-secondary" id="btn-refresh" style="padding:6px 12px;font-size:12px;">
-          <span class="material-icons" style="font-size:14px;">refresh</span>
+        <button class="btn btn-secondary btn-sm" id="btn-seed">
+          <span class="material-icons">add_circle</span> Seed
+        </button>
+        <button class="btn btn-ghost btn-sm" id="btn-refresh" title="Refresh">
+          <span class="material-icons">refresh</span>
         </button>
       </div>
     </div>
 
-    <!-- ═══ DASHBOARD ═══════════════════════════════════════════ -->
+    <!-- ═══════ DASHBOARD ════════════════════════════════════ -->
     <div class="page active" id="page-dashboard">
-      <div class="hero-banner">
-        <div class="hero-title">State is a Pure Function of Events</div>
-        <div class="hero-sub">Deterministic replay, failure recovery, and state validation powered by immutable event logs. No state is stored — everything is computed on demand from the log.</div>
-        <div class="hero-actions">
-          <button class="btn btn-primary" id="hero-seed-btn"><span class="material-icons">dataset</span> Seed Demo Data</button>
-          <button class="btn btn-secondary" id="hero-replay-btn"><span class="material-icons">play_circle</span> Run Full Replay</button>
+
+      <div class="hero">
+        <div class="hero-title-row">
+          <div class="hero-title">State is a Pure Function of Events</div>
+          <div class="live-badge" id="live-badge"><div class="live-dot"></div>LIVE</div>
         </div>
-        <div class="hero-eq">S(t) = fold(E, S₀)<br/>∀ duplicate → skip<br/>∀ order gap → reject<br/>S = replay(log)</div>
+        <div class="hero-sub">
+          Deterministic replay, failure recovery, and state validation —
+          powered by immutable event logs. No state is stored.
+        </div>
+        <div class="hero-actions">
+          <button class="btn btn-primary" id="hero-seed-btn">
+            <span class="material-icons">dataset</span> Seed Demo Data
+          </button>
+          <button class="btn btn-secondary" id="hero-replay-btn">
+            <span class="material-icons">play_circle</span> Full Replay
+          </button>
+        </div>
+        <svg class="hero-flow" aria-hidden="true" viewBox="0 0 310 80" width="310" height="80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr-a" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0.5 L5,3 L0,5.5" fill="none" stroke="rgba(245,158,11,0.45)" stroke-width="1.2"/>
+            </marker>
+            <marker id="arr-g" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0.5 L5,3 L0,5.5" fill="none" stroke="rgba(74,222,128,0.4)" stroke-width="1.2"/>
+            </marker>
+          </defs>
+          <rect x="1" y="20" width="82" height="36" rx="5" fill="rgba(245,158,11,0.05)" stroke="rgba(245,158,11,0.2)" stroke-width="1"/>
+          <text x="42" y="35" text-anchor="middle" fill="#6d5f52" font-size="9" font-family="JetBrains Mono,monospace" letter-spacing="0.04em">EVENTS</text>
+          <text x="42" y="48" text-anchor="middle" fill="#ffb547" font-size="10" font-family="JetBrains Mono,monospace" font-weight="600">log[]</text>
+          <rect x="117" y="20" width="76" height="36" rx="5" fill="rgba(245,158,11,0.08)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+          <text x="155" y="35" text-anchor="middle" fill="#6d5f52" font-size="9" font-family="JetBrains Mono,monospace" letter-spacing="0.04em">FUNCTION</text>
+          <text x="155" y="48" text-anchor="middle" fill="#ffb547" font-size="10" font-family="JetBrains Mono,monospace" font-weight="600">fold(E,S₀)</text>
+          <rect x="231" y="20" width="78" height="36" rx="5" fill="rgba(74,222,128,0.05)" stroke="rgba(74,222,128,0.2)" stroke-width="1"/>
+          <text x="270" y="35" text-anchor="middle" fill="#6d5f52" font-size="9" font-family="JetBrains Mono,monospace" letter-spacing="0.04em">OUTPUT</text>
+          <text x="270" y="48" text-anchor="middle" fill="#4ade80" font-size="10" font-family="JetBrains Mono,monospace" font-weight="600">State(t)</text>
+          <path id="fp1" d="M 84,38 L 115,38" stroke="rgba(245,158,11,0.25)" stroke-width="1.5" fill="none" marker-end="url(#arr-a)"/>
+          <path id="fp2" d="M 194,38 L 229,38" stroke="rgba(74,222,128,0.25)" stroke-width="1.5" fill="none" marker-end="url(#arr-g)"/>
+          <circle r="3.5" fill="#f59e0b" opacity="0.95"><animateMotion dur="1.6s" repeatCount="indefinite" begin="0s"><mpath href="#fp1"/></animateMotion></circle>
+          <circle r="2" fill="#f59e0b" opacity="0.5"><animateMotion dur="1.6s" repeatCount="indefinite" begin="0.5s"><mpath href="#fp1"/></animateMotion></circle>
+          <circle r="3.5" fill="#4ade80" opacity="0.95"><animateMotion dur="1.6s" repeatCount="indefinite" begin="0.1s"><mpath href="#fp2"/></animateMotion></circle>
+          <circle r="2" fill="#4ade80" opacity="0.5"><animateMotion dur="1.6s" repeatCount="indefinite" begin="0.6s"><mpath href="#fp2"/></animateMotion></circle>
+          <text x="155" y="72" text-anchor="middle" fill="rgba(109,95,82,0.5)" font-size="8.5" font-family="JetBrains Mono,monospace">S(t) = fold(E, S₀) · deterministic · immutable</text>
+        </svg>
       </div>
 
-      <div class="grid-4 mb-16">
-        <div class="card"><div class="card-label">Total Accounts</div><div class="card-value" id="stat-accounts">—</div><div class="card-sub">active streams</div></div>
-        <div class="card"><div class="card-label">Total Events</div><div class="card-value" id="stat-events">—</div><div class="card-sub">immutable log entries</div></div>
-        <div class="card"><div class="card-label">Total Balance</div><div class="card-value" id="stat-balance">—</div><div class="card-sub">across all accounts</div></div>
-        <div class="card"><div class="card-label">System State</div><div class="card-value text-success" id="stat-health" style="font-size:18px;">—</div><div class="card-sub" id="stat-health-sub">checking…</div></div>
+      <div class="grid-4 mb-20">
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-label">Total Accounts</span>
+            <span class="stat-icon stat-icon-sky"><span class="material-icons">layers</span></span>
+          </div>
+          <div class="stat-value" id="stat-accounts">—</div>
+          <div class="stat-caption">active streams</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-label">Total Events</span>
+            <span class="stat-icon stat-icon-amber"><span class="material-icons">bolt</span></span>
+          </div>
+          <div class="stat-value" id="stat-events">—</div>
+          <div class="stat-caption">immutable log entries</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-label">Total Balance</span>
+            <span class="stat-icon stat-icon-green"><span class="material-icons">account_balance_wallet</span></span>
+          </div>
+          <div class="stat-value" id="stat-balance">—</div>
+          <div class="stat-caption">across all accounts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-label">System State</span>
+            <span class="stat-icon stat-icon-status" id="stat-health-icon"><span class="material-icons">verified</span></span>
+          </div>
+          <div class="stat-value" id="stat-health" style="font-size:18px;">—</div>
+          <div class="stat-caption" id="stat-health-sub">checking…</div>
+        </div>
       </div>
 
       <div class="row">
         <div class="col">
           <div class="card">
-            <div class="label-sm">ENTITY STATE</div>
-            <div id="accounts-table-wrap"><div class="empty-state"><span class="material-icons">account_balance</span>No accounts yet — click Seed Demo Data</div></div>
+            <div class="card-label">Entity State</div>
+            <div id="accounts-table-wrap">
+              <div class="empty">
+                <span class="material-icons">account_balance</span>
+                <strong>No accounts yet</strong>
+                <p>Create demo accounts to explore event sourcing</p>
+                <button class="btn btn-primary" onclick="seedData()">
+                  <span class="material-icons">dataset</span> Seed Demo Data
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="col">
           <div class="card">
-            <div class="label-sm">RECENT EVENTS</div>
-            <div id="dashboard-events" class="event-list" style="max-height:340px;overflow-y:auto;">
-              <div class="empty-state"><span class="material-icons">timeline</span>No events yet</div>
+            <div class="card-label">Recent Events</div>
+            <div id="dashboard-events" style="max-height:360px;overflow-y:auto;">
+              <div class="empty">
+                <span class="material-icons">timeline</span>
+                <strong>No events yet</strong>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ═══ TIMELINE ════════════════════════════════════════════ -->
+    <!-- ═══════ TIMELINE ═════════════════════════════════════ -->
     <div class="page" id="page-timeline">
-      <div class="section-header"><div class="section-title">Event Timeline</div><div class="section-sub">Immutable, ordered log of every state transition</div></div>
+      <div class="section-header">
+        <div class="section-title">Event Timeline</div>
+        <div class="section-sub">Immutable, ordered log of every state transition</div>
+      </div>
       <div class="card mb-16">
         <div class="input-group">
-          <label class="label-sm" style="margin:0;width:auto;">Stream</label>
+          <label class="field-label" style="margin:0;">Stream</label>
           <select id="timeline-stream-select"><option value="">Select account…</option></select>
-          <button class="btn btn-primary" id="btn-load-timeline"><span class="material-icons">search</span> Load Events</button>
+          <button class="btn btn-primary" id="btn-load-timeline">
+            <span class="material-icons">search</span> Load Events
+          </button>
         </div>
       </div>
       <div class="card">
         <div id="timeline-header" class="mb-12" style="display:none;justify-content:space-between;align-items:center;">
-          <span class="label-sm" style="margin:0;" id="timeline-stream-label"></span>
-          <span class="chip" id="timeline-event-count">— events</span>
+          <span class="field-label" style="margin:0;" id="timeline-stream-label"></span>
+          <span class="chip chip-default" id="timeline-event-count">— events</span>
         </div>
-        <div id="timeline-events" class="event-list">
-          <div class="empty-state"><span class="material-icons">timeline</span>Select a stream to view events</div>
+        <div id="filter-pills-wrap" style="display:none;">
+          <div class="filter-pills" id="filter-pills"></div>
+          <div class="filter-result-info" id="filter-result-info"></div>
+        </div>
+        <div id="timeline-events">
+          <div class="empty">
+            <span class="material-icons">timeline</span>
+            <strong>No stream selected</strong>
+            <p>Choose a stream above to view its full event history</p>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ═══ REPLAY ENGINE ════════════════════════════════════════ -->
+    <!-- ═══════ REPLAY ═══════════════════════════════════════ -->
     <div class="page" id="page-replay">
-      <div class="section-header"><div class="section-title">Replay Engine</div><div class="section-sub">Reconstruct correct state from the event log — with or without snapshots</div></div>
+      <div class="section-header">
+        <div class="section-title">Replay Engine</div>
+        <div class="section-sub">Reconstruct correct state from the event log — with or without snapshots</div>
+      </div>
       <div class="row mb-16">
         <div class="col">
           <div class="card">
-            <div class="label-sm">REPLAY MODE</div>
+            <div class="card-label">Replay Mode</div>
             <div class="input-group mt-12">
               <select id="replay-mode-select">
                 <option value="full">Full Replay (from event zero)</option>
                 <option value="snapshot">Snapshot-Assisted (delta only)</option>
               </select>
-              <button class="btn btn-primary" id="btn-run-replay"><span class="material-icons">play_arrow</span> Run Replay</button>
+              <button class="btn btn-primary" id="btn-run-replay">
+                <span class="material-icons">play_arrow</span> Run Replay
+              </button>
             </div>
-            <div class="mt-16"><div class="replay-track"><div class="replay-fill" id="replay-progress" style="width:0%"></div></div></div>
-            <div class="mt-12" id="replay-status-msg" style="font-size:12px;color:var(--outline);font-family:var(--font-data);">Ready</div>
+            <div class="mt-16"><div class="progress-track"><div class="progress-fill" id="replay-progress" style="width:0%"></div></div></div>
+            <div class="mt-8" id="replay-status-msg" style="font-size:12px;color:var(--text-2);font-family:var(--font-data);">Ready</div>
           </div>
         </div>
         <div class="col">
           <div class="card">
-            <div class="label-sm">REPLAY METRICS</div>
-            <table style="width:100%;margin-top:10px;">
-              <tr><td class="label-sm" style="padding:5px 0">Mode</td><td class="mono" style="text-align:right;font-size:12px;" id="rm-mode">—</td></tr>
-              <tr><td class="label-sm" style="padding:5px 0">Duration</td><td class="mono text-primary" style="text-align:right;font-size:12px;" id="rm-duration">—</td></tr>
-              <tr><td class="label-sm" style="padding:5px 0">Events Processed</td><td class="mono" style="text-align:right;font-size:12px;" id="rm-events">—</td></tr>
-              <tr><td class="label-sm" style="padding:5px 0">Streams</td><td class="mono" style="text-align:right;font-size:12px;" id="rm-streams">—</td></tr>
-              <tr><td class="label-sm" style="padding:5px 0">Validation</td><td class="mono text-success" style="text-align:right;font-size:12px;" id="rm-valid">—</td></tr>
+            <div class="card-label">Replay Metrics</div>
+            <table style="width:100%;margin-top:8px;">
+              <tr><td class="field-label" style="padding:4px 0">Mode</td><td class="mono" style="text-align:right;font-size:12px;color:var(--text-1);" id="rm-mode">—</td></tr>
+              <tr><td class="field-label" style="padding:4px 0">Duration</td><td class="mono text-amber" style="text-align:right;font-size:12px;" id="rm-duration">—</td></tr>
+              <tr><td class="field-label" style="padding:4px 0">Events</td><td class="mono" style="text-align:right;font-size:12px;color:var(--text-1);" id="rm-events">—</td></tr>
+              <tr><td class="field-label" style="padding:4px 0">Streams</td><td class="mono" style="text-align:right;font-size:12px;color:var(--text-1);" id="rm-streams">—</td></tr>
+              <tr><td class="field-label" style="padding:4px 0">Valid</td><td class="mono text-green" style="text-align:right;font-size:12px;" id="rm-valid">—</td></tr>
             </table>
           </div>
         </div>
       </div>
-      <div class="card"><div class="label-sm">RECONSTRUCTED STATE</div><div id="replay-state-out" class="code-block mt-12">Run replay to see reconstructed state…</div></div>
+      <div class="card">
+        <div class="card-label">Reconstructed State</div>
+        <div class="state-view-toggle mt-12">
+          <button class="state-view-btn active" id="svbtn-cards" onclick="switchStateView('cards')">Account Cards</button>
+          <button class="state-view-btn" id="svbtn-json" onclick="switchStateView('json')">Raw JSON</button>
+        </div>
+        <div class="state-cards-wrap show" id="state-cards"><div style="color:var(--text-3);font-family:var(--font-data);font-size:12px;padding:20px;">Run replay to see account cards…</div></div>
+        <div id="replay-state-out" class="code-block" style="display:none;">Run replay to see reconstructed state…</div>
+      </div>
     </div>
 
-    <!-- ═══ FAILURE LAB ══════════════════════════════════════════ -->
+    <!-- ═══════ FAILURE LAB ══════════════════════════════════ -->
     <div class="page" id="page-failure">
-      <div class="section-header"><div class="section-title">Failure Simulation Lab</div><div class="section-sub">Inject chaos — prove the system recovers deterministically every time</div></div>
+      <div class="section-header">
+        <div class="section-title">Failure Simulation Lab</div>
+        <div class="section-sub">Inject chaos — prove the system recovers deterministically every time</div>
+      </div>
       <div class="card mb-16">
         <div class="input-group">
-          <label class="label-sm" style="margin:0;width:auto;">Target Account</label>
+          <label class="field-label" style="margin:0;">Target Account</label>
           <select id="failure-stream-select"><option value="">Select account…</option></select>
-          <span class="chip" id="failure-current-balance">—</span>
+          <span class="chip chip-default" id="failure-current-balance">—</span>
         </div>
       </div>
-      <div class="failure-grid" id="failure-grid"></div>
+      <div class="chaos-grid" id="failure-grid"></div>
       <div class="sep"></div>
       <div class="card">
-        <div class="label-sm">RECOVERY DIAGNOSTICS</div>
+        <div class="card-label">Recovery Diagnostics</div>
         <div id="failure-log" style="margin-top:12px;">
-          <div class="empty-state"><span class="material-icons">health_and_safety</span>Inject a failure to see recovery diagnostics</div>
+          <div class="empty">
+            <span class="material-icons">health_and_safety</span>
+            <strong>No tests run yet</strong>
+            <p>Inject a failure above to see recovery diagnostics</p>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ═══ STATE VALIDATION ══════════════════════════════════════ -->
+    <!-- ═══════ VALIDATION ═══════════════════════════════════ -->
     <div class="page" id="page-validation">
-      <div class="section-header"><div class="section-title">State Validation</div><div class="section-sub">Invariant checks — prove replayed state is mathematically correct</div></div>
+      <div class="section-header">
+        <div class="section-title">State Validation</div>
+        <div class="section-sub">Invariant checks — prove replayed state is mathematically correct</div>
+      </div>
       <div class="row mb-16">
         <div class="col">
           <div class="card">
-            <div class="label-sm">VALIDATION SUMMARY</div>
-            <div class="mt-16" id="validation-summary"><div class="empty-state"><span class="material-icons">fact_check</span>Run validation to check invariants</div></div>
+            <div class="card-label">Validation Summary</div>
+            <div class="mt-16" id="validation-summary">
+              <div class="empty">
+                <span class="material-icons">fact_check</span>
+                <strong>Not yet validated</strong>
+                <p>Run validation to verify all system invariants</p>
+              </div>
+            </div>
           </div>
         </div>
         <div class="col">
           <div class="card">
-            <div class="label-sm">INVARIANT CHECKS</div>
-            <div id="validation-findings" class="mt-12"><div class="empty-state"><span class="material-icons">rule</span>No findings yet</div></div>
-            <div class="mt-16"><button class="btn btn-primary" id="btn-validate"><span class="material-icons">verified</span> Run Validation</button></div>
+            <div class="card-label">Invariant Checks</div>
+            <div id="validation-findings" class="mt-12">
+              <div class="empty"><span class="material-icons">rule</span><strong>No findings yet</strong></div>
+            </div>
+            <div class="mt-16">
+              <button class="btn btn-primary" id="btn-validate">
+                <span class="material-icons">verified</span> Run Validation
+              </button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="card"><div class="label-sm">ACCOUNT INVARIANTS</div><div id="validation-accounts" class="mt-12"><div class="empty-state"><span class="material-icons">account_balance</span>No account state yet</div></div></div>
+      <div class="card">
+        <div class="card-label">Account Invariants</div>
+        <div id="validation-accounts" class="mt-12">
+          <div class="empty"><span class="material-icons">account_balance</span><strong>No accounts</strong></div>
+        </div>
+      </div>
     </div>
 
-    <!-- ═══ METRICS ══════════════════════════════════════════════ -->
+    <!-- ═══════ METRICS ══════════════════════════════════════ -->
     <div class="page" id="page-metrics">
-      <div class="section-header"><div class="section-title">Performance Metrics</div><div class="section-sub">Compare full vs snapshot-assisted replay performance</div></div>
+      <div class="section-header">
+        <div class="section-title">Performance Metrics</div>
+        <div class="section-sub">Compare full vs snapshot-assisted replay throughput</div>
+      </div>
       <div class="grid-2 mb-16">
-        <div class="card"><div class="card-label">Full Replay Duration</div><div class="card-value" id="perf-full-ms">—</div><div class="card-sub">ms — across all streams</div></div>
-        <div class="card"><div class="card-label">Snapshot Replay Duration</div><div class="card-value text-tertiary" id="perf-snap-ms">—</div><div class="card-sub">ms — delta events only</div></div>
+        <div class="stat-card">
+          <div class="stat-header"><span class="stat-label">Full Replay</span><span class="stat-icon stat-icon-amber"><span class="material-icons">timer</span></span></div>
+          <div class="stat-value" id="perf-full-ms">—</div>
+          <div class="stat-caption">ms — all streams</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span class="stat-label">Snapshot Replay</span><span class="stat-icon stat-icon-sky"><span class="material-icons">flash_on</span></span></div>
+          <div class="stat-value text-sky" id="perf-snap-ms">—</div>
+          <div class="stat-caption">ms — delta only</div>
+        </div>
       </div>
       <div class="row">
         <div class="col">
           <div class="card">
-            <div class="label-sm">THROUGHPUT ANALYSIS</div>
-            <div class="metric-bar-container mt-16" id="metric-bars"><div class="empty-state"><span class="material-icons">bar_chart</span>Run benchmarks to see analysis</div></div>
-            <div class="mt-16"><button class="btn btn-primary" id="btn-bench"><span class="material-icons">speed</span> Run Benchmarks</button></div>
+            <div class="card-label">Throughput Analysis</div>
+            <!-- SVG Chart (populated by JS after benchmark) -->
+            <div class="chart-wrap" id="svg-chart-wrap" style="display:none;">
+              <svg id="bench-svg" height="140" viewBox="0 0 300 140" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <linearGradient id="barGradAmber" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"  stop-color="#f59e0b" />
+                    <stop offset="100%" stop-color="#d97706" stop-opacity="0.7" />
+                  </linearGradient>
+                  <linearGradient id="barGradSky" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"  stop-color="#38bdf8" />
+                    <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.7" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="chart-tooltip" id="chart-tooltip"></div>
+            </div>
+            <!-- Legacy bars (updated alongside chart) -->
+            <div class="mt-16" id="metric-bars">
+              <div class="mbar-item">
+                <div class="mbar-head"><span class="mbar-label">Full Replay</span><span class="mbar-val" id="bval-full">—</span></div>
+                <div class="mbar-track"><div class="mbar-fill" id="bar-full" style="width:0%"></div></div>
+              </div>
+              <div class="mbar-item">
+                <div class="mbar-head"><span class="mbar-label">Snapshot Replay</span><span class="mbar-val" id="bval-snap">—</span></div>
+                <div class="mbar-track"><div class="mbar-fill teal" id="bar-snap" style="width:0%"></div></div>
+              </div>
+            </div>
+            <div class="mt-16">
+              <button class="btn btn-primary" id="btn-bench">
+                <span class="material-icons">speed</span> Run Benchmarks
+              </button>
+            </div>
           </div>
         </div>
         <div class="col">
-          <div class="card">
-            <div class="label-sm">BENCHMARK LOG</div>
-            <div id="bench-log" class="code-block mt-12" style="min-height:180px;">Click "Run Benchmarks" to compare modes…</div>
+          <div class="card" style="padding:0;">
+            <div class="terminal" style="border:none;border-radius:var(--radius-lg);">
+              <div class="terminal-chrome">
+                <div class="terminal-dots">
+                  <div class="terminal-dot-r"></div>
+                  <div class="terminal-dot-y"></div>
+                  <div class="terminal-dot-g"></div>
+                </div>
+                <div class="terminal-title">RewindDB Benchmark</div>
+                <span class="terminal-ts" id="bench-ts">—</span>
+              </div>
+              <div class="terminal-body" id="bench-body">Click "Run Benchmarks" to compare modes…</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
   </main>
 </div>
 
-<script>
-/* ────────────────────────────────────────────────────────────
-   CONFIG — persisted in localStorage, editable via UI
-─────────────────────────────────────────────────────────── */
-const DEFAULT_API = 'https://817b9dc9307888e8-115-244-141-202.serveousercontent.com';
-let API = DEFAULT_API; // Force Serveo, ignore stale pinggy in localStorage
-localStorage.removeItem('rewinddb_api_url'); // Clear the corrupt pinggy link
+<!-- ─── LIVE ACTIVITY TICKER ────────────────────────── -->
+<div class="ticker-bar" id="ticker-bar">
+  <span class="ticker-label">Live</span>
+  <div class="ticker-track">
+    <div class="ticker-inner" id="ticker-inner"></div>
+  </div>
+</div>
 
-function getApi() { return API; }
-function setApi(url) {
-  API = url.trim().replace(/\/$/, '');
-  localStorage.setItem('rewinddb_api_url', API);
-  document.getElementById('api-url-display').textContent = API.replace(/^https?:\/\//, '');
-}
-setApi(API); // sync display on load
+<!-- ─── HELP FAB ────────────────────────────────────── -->
+<button class="help-fab" id="help-fab" title="Help &amp; shortcuts (?)">?</button>
 
-/* ────────────────────────────────────────────────────────────
-   HELPERS
-─────────────────────────────────────────────────────────── */
-async function apiCall(method, path, body) {
-  const opts = { method, headers: { 
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true'
-  } };
-  if (body !== undefined && body !== null) opts.body = JSON.stringify(body);
-  const r = await fetch(getApi() + path, opts);
-  if (!r.ok) {
-    let msg;
-    try { const j = await r.json(); msg = j.detail || j.message || r.statusText; } catch { msg = r.statusText; }
-    throw new Error(`${r.status}: ${msg}`);
-  }
-  return r.json();
-}
-
-function toast(msg, type = '') {
-  const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.textContent = msg;
-  document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => el.remove(), 4500);
-}
-
-const fmtMs   = ms  => ms  != null ? `${parseFloat(ms).toFixed(2)}ms` : '—';
-const fmtBal  = b   => b   != null ? `$${parseFloat(b).toFixed(2)}` : '—';
-const ago     = iso => iso ? new Date(iso).toLocaleTimeString() : '—';
-
-/* BUG FIX: correct event type → stripe class mapping */
-function stripeClass(type) {
-  if (!type) return 'stripe-default';
-  const t = type.toLowerCase();
-  if (t.includes('creat'))    return 'stripe-create';
-  if (t.includes('deposit'))  return 'stripe-deposit';
-  if (t.includes('withdraw')) return 'stripe-withdraw';
-  if (t.includes('transfer')) return 'stripe-transfer';
-  if (t.includes('froz') || t.includes('freez')) return 'stripe-freeze';
-  return 'stripe-default';
-}
-
-function syntaxHL(json) {
-  if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
-  return json
-    .replace(/("[\w _-]+")\s*:/g, '<span class="key">$1</span>:')
-    .replace(/:\s*(".*?")/g, ': <span class="str">$1</span>')
-    .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="value">$1</span>')
-    .replace(/:\s*(true|false|null)/g, ': <span class="value">$1</span>');
-}
-
-/* ────────────────────────────────────────────────────────────
-   API SETTINGS MODAL
-─────────────────────────────────────────────────────────── */
-function openApiModal() {
-  document.getElementById('api-url-input').value = API;
-  document.getElementById('api-modal').classList.add('open');
-}
-document.getElementById('btn-config-api').addEventListener('click', openApiModal);
-document.getElementById('modal-cancel').addEventListener('click', () => document.getElementById('api-modal').classList.remove('open'));
-document.getElementById('modal-save').addEventListener('click', () => {
-  const val = document.getElementById('api-url-input').value.trim();
-  if (!val) return;
-  setApi(val);
-  document.getElementById('api-modal').classList.remove('open');
-  toast('API URL updated — reconnecting…', 'info');
-  checkHealth();
-  loadDashboard();
-});
-// Close modal on backdrop click
-document.getElementById('api-modal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
-});
-
-/* ────────────────────────────────────────────────────────────
-   NAVIGATION
-─────────────────────────────────────────────────────────── */
-const PAGES = ['dashboard','timeline','replay','failure','validation','metrics'];
-const TITLES = { dashboard:'Dashboard', timeline:'Event Timeline', replay:'Replay Engine', failure:'Failure Lab', validation:'State Validation', metrics:'Performance Metrics' };
-let currentPage = 'dashboard';
-
-function showPage(id) {
-  PAGES.forEach(p => {
-    document.getElementById(`page-${p}`).classList.toggle('active', p === id);
-    document.getElementById(`nav-${p}`).classList.toggle('active', p === id);
-  });
-  document.getElementById('topbar-title').textContent = TITLES[id];
-  currentPage = id;
-  if (id === 'dashboard')  loadDashboard();
-  if (id === 'timeline')   loadStreamOptions(['timeline-stream-select']);
-  if (id === 'failure')    { loadStreamOptions(['timeline-stream-select','failure-stream-select']); buildFailureCards(); }
-  if (id === 'validation') { /* manual trigger */ }
-  if (id === 'metrics')    { /* manual trigger */ }
-}
-
-document.querySelectorAll('.nav-link').forEach(a => a.addEventListener('click', () => showPage(a.dataset.page)));
-document.getElementById('hero-replay-btn').addEventListener('click', () => showPage('replay'));
-
-/* ────────────────────────────────────────────────────────────
-   GLOBAL STATE
-─────────────────────────────────────────────────────────── */
-let streams = [];
-
-/* ────────────────────────────────────────────────────────────
-   HEALTH CHECK
-─────────────────────────────────────────────────────────── */
-async function checkHealth() {
-  const dot     = document.getElementById('backend-status-dot');
-  const txt     = document.getElementById('backend-status-text');
-  const banner  = document.getElementById('offline-banner');
-  try {
-    await apiCall('GET', '/health');
-    dot.className = 'status-dot';
-    txt.textContent = 'backend ok';
-    banner.classList.remove('show');
-    return true;
-  } catch {
-    dot.className = 'status-dot offline';
-    txt.textContent = 'offline';
-    banner.classList.add('show');
-    return false;
-  }
-}
-checkHealth();
-setInterval(checkHealth, 10000);
-
-/* ────────────────────────────────────────────────────────────
-   STREAMS
-─────────────────────────────────────────────────────────── */
-async function loadStreams() {
-  try {
-    const d = await apiCall('GET', '/queries/streams');
-    streams = d.streams || [];
-    document.getElementById('topbar-stream-count').textContent = `${streams.length} streams`;
-  } catch { streams = []; }
-  return streams;
-}
-
-function populateSelect(id) {
-  const sel = document.getElementById(id);
-  if (!sel) return;
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Select account…</option>';
-  streams.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s; o.textContent = s;
-    sel.appendChild(o);
-  });
-  if (cur && streams.includes(cur)) sel.value = cur;
-}
-
-async function loadStreamOptions(selectIds = ['timeline-stream-select']) {
-  await loadStreams();
-  selectIds.forEach(id => populateSelect(id));
-}
-
-/* ────────────────────────────────────────────────────────────
-   SEED
-─────────────────────────────────────────────────────────── */
-async function seedData() {
-  const btn = document.getElementById('btn-seed');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Seeding…';
-  try {
-    toast('Seeding demo accounts…', 'info');
-    const d = await apiCall('POST', '/simulate/seed', { num_accounts: 3, transactions_per_account: 4 });
-    toast(`✓ Seeded ${d.seeded_accounts.length} accounts`, 'success');
-    await loadDashboard();
-  } catch (e) { toast('Seed failed: ' + e.message, 'error'); }
-  btn.disabled = false; btn.innerHTML = '<span class="material-icons" style="font-size:14px;">add_circle</span> Seed';
-}
-document.getElementById('btn-seed').addEventListener('click', seedData);
-document.getElementById('hero-seed-btn').addEventListener('click', seedData);
-document.getElementById('btn-refresh').addEventListener('click', () => { if (currentPage === 'dashboard') loadDashboard(); });
-
-/* ────────────────────────────────────────────────────────────
-   DASHBOARD
-─────────────────────────────────────────────────────────── */
-async function loadDashboard() {
-  await loadStreams();
-  if (!streams.length) {
-    ['stat-accounts','stat-events'].forEach(id => document.getElementById(id).textContent = '0');
-    document.getElementById('stat-balance').textContent = '$0.00';
-    document.getElementById('stat-health').textContent = 'EMPTY';
-    document.getElementById('stat-health').className = 'card-value text-success';
-    document.getElementById('stat-health-sub').textContent = 'no data — seed first';
-    document.getElementById('topbar-event-count').textContent = '0 events';
-    document.getElementById('accounts-table-wrap').innerHTML = '<div class="empty-state"><span class="material-icons">account_balance</span>No accounts yet — click Seed Demo Data</div>';
-    document.getElementById('dashboard-events').innerHTML = '<div class="empty-state"><span class="material-icons">timeline</span>No events yet</div>';
-    return;
-  }
-  try {
-    const data = await apiCall('GET', '/queries/replay?mode=full');
-    const accounts = Object.values(data.state.accounts || {});
-    const v = data.validation || {};
-    const totalBal  = v.total_balance ?? 0;
-    const totalEvts = data.state.total_events_processed ?? 0;
-
-    document.getElementById('stat-accounts').textContent = accounts.length;
-    document.getElementById('stat-events').textContent   = totalEvts;
-    document.getElementById('stat-balance').textContent  = fmtBal(totalBal);
-    document.getElementById('topbar-event-count').textContent = `${totalEvts} events`;
-    const isValid = v.is_valid;
-    document.getElementById('stat-health').textContent  = isValid ? '✓ VALID' : '✗ INVALID';
-    document.getElementById('stat-health').className    = 'card-value ' + (isValid ? 'text-success' : 'text-error');
-    document.getElementById('stat-health-sub').textContent = isValid ? 'all invariants pass' : 'invariant violations detected';
-
-    renderAccountTable(accounts);
-    renderRecentEvents(data.state);
-  } catch (e) { toast('Dashboard load failed: ' + e.message, 'error'); }
-}
-
-function renderAccountTable(accounts) {
-  if (!accounts.length) {
-    document.getElementById('accounts-table-wrap').innerHTML = '<div class="empty-state"><span class="material-icons">account_balance</span>No accounts</div>';
-    return;
-  }
-  let html = `<table class="account-table"><thead><tr><th>Account ID</th><th>Owner</th><th>Balance</th><th>Status</th><th>Events</th></tr></thead><tbody>`;
-  accounts.forEach(a => {
-    html += `<tr>
-      <td class="mono"><span class="truncate" title="${a.account_id}">${a.account_id}</span></td>
-      <td>${escHtml(a.owner)}</td>
-      <td class="mono ${a.balance > 0 ? 'balance-positive' : 'balance-zero'}">${fmtBal(a.balance)}</td>
-      <td><span class="chip ${a.status === 'active' ? 'success' : 'error'}">${a.status}</span></td>
-      <td class="mono">${a.event_count}</td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-  document.getElementById('accounts-table-wrap').innerHTML = html;
-}
-
-function renderRecentEvents(state) {
-  // BUG FIX: use already-loaded state instead of extra fetches, pull events from all accounts
-  const evts = [];
-  Object.values(state.accounts || {}).forEach(a => {
-    // events not directly in state; fall back to fetching a couple streams
-  });
-  // Actually fetch up to 2 streams' events to populate recent panel
-  (async () => {
-    try {
-      const combined = [];
-      for (const s of streams.slice(0, 3)) {
-        const d = await apiCall('GET', `/queries/events/${s}`);
-        (d.events || []).forEach(e => combined.push({ ...e, stream_id: e.stream_id || s }));
-      }
-      combined.sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at));
-      document.getElementById('dashboard-events').innerHTML = combined.length
-        ? combined.slice(0, 18).map(e => eventCard(e)).join('')
-        : '<div class="empty-state"><span class="material-icons">timeline</span>No events</div>';
-      document.getElementById('topbar-event-count').textContent = `${combined.length}+ events`;
-    } catch {}
-  })();
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function eventCard(e) {
-  const parts = [];
-  if (e.amount         != null) parts.push(`amount: ${fmtBal(e.amount)}`);
-  if (e.initial_balance != null) parts.push(`initial: ${fmtBal(e.initial_balance)}`);
-  if (e.target_account_id)       parts.push(`to: ${e.target_account_id}`);
-  if (e.owner)                   parts.push(`owner: ${escHtml(e.owner)}`);
-  const sid = e.stream_id || '—';
-  return `<div class="event-item">
-    <div class="event-stripe ${stripeClass(e.type)}"></div>
-    <div class="event-content">
-      <div class="event-type">${escHtml(e.type || 'UnknownEvent')}</div>
-      <div class="event-meta">${ago(e.occurred_at)} · <span class="truncate" style="max-width:130px;" title="${sid}">${sid}</span></div>
-      ${parts.length ? `<div class="event-data">${parts.join(' · ')}</div>` : ''}
+<!-- ─── HELP BACKDROP + DRAWER ─────────────────────── -->
+<div class="help-backdrop" id="help-backdrop"></div>
+<div class="help-drawer" id="help-drawer">
+  <div class="help-header">
+    <div class="help-header-left">
+      <div class="help-icon-wrap"><span class="material-icons">auto_stories</span></div>
+      <div class="help-title">RewindDB Guide</div>
     </div>
-    <div class="event-version">v${e.version ?? '?'}</div>
-  </div>`;
-}
-
-/* ────────────────────────────────────────────────────────────
-   TIMELINE
-─────────────────────────────────────────────────────────── */
-document.getElementById('btn-load-timeline').addEventListener('click', async () => {
-  const sel = document.getElementById('timeline-stream-select');
-  const streamId = sel.value;
-  if (!streamId) { toast('Select a stream first', 'error'); return; }
-  const btn = document.getElementById('btn-load-timeline');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Loading…';
-  try {
-    const d = await apiCall('GET', `/queries/events/${streamId}`);
-    const events = d.events || [];
-    document.getElementById('timeline-header').style.display = 'flex';
-    document.getElementById('timeline-stream-label').textContent = streamId;
-    document.getElementById('timeline-event-count').textContent = `${events.length} events`;
-    document.getElementById('timeline-events').innerHTML = events.length
-      ? events.map(e => eventCard({ ...e, stream_id: streamId })).join('')
-      : '<div class="empty-state">No events in this stream</div>';
-  } catch (e) { toast('Load failed: ' + e.message, 'error'); }
-  btn.disabled = false; btn.innerHTML = '<span class="material-icons">search</span> Load Events';
-});
-
-/* ────────────────────────────────────────────────────────────
-   REPLAY ENGINE
-─────────────────────────────────────────────────────────── */
-document.getElementById('btn-run-replay').addEventListener('click', async () => {
-  const mode = document.getElementById('replay-mode-select').value;
-  const btn  = document.getElementById('btn-run-replay');
-  const prog = document.getElementById('replay-progress');
-  const msg  = document.getElementById('replay-status-msg');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Running…';
-  prog.style.width = '30%'; msg.textContent = `Running ${mode} replay…`;
-  msg.style.color = 'var(--outline)';
-  try {
-    prog.style.width = '70%';
-    const d = await apiCall('GET', `/queries/replay?mode=${mode}`);
-    prog.style.width = '100%';
-    const m = d.metrics || {};
-    const v = d.validation || {};
-    document.getElementById('rm-mode').textContent     = m.mode || mode;
-    document.getElementById('rm-duration').textContent = fmtMs(m.duration_ms);
-    document.getElementById('rm-events').textContent   = m.events_processed ?? '—';
-    document.getElementById('rm-streams').textContent  = m.streams_processed ?? '—';
-    const valid = v.is_valid;
-    document.getElementById('rm-valid').textContent  = valid ? '✓ PASS' : '✗ FAIL';
-    document.getElementById('rm-valid').className    = 'mono ' + (valid ? 'text-success' : 'text-error');
-    document.getElementById('replay-state-out').innerHTML = syntaxHL(d.state);
-    msg.textContent = `Completed in ${fmtMs(m.duration_ms)} — ${m.events_processed} events processed`;
-    msg.style.color = 'var(--success)';
-    toast(`Replay complete: ${fmtMs(m.duration_ms)}`, 'success');
-    setTimeout(() => { prog.style.width = '0%'; }, 2000);
-  } catch (e) {
-    prog.style.width = '0%';
-    msg.textContent = 'Replay failed: ' + e.message;
-    msg.style.color = 'var(--error)';
-    toast('Replay failed: ' + e.message, 'error');
-  }
-  btn.disabled = false; btn.innerHTML = '<span class="material-icons">play_arrow</span> Run Replay';
-});
-
-/* ────────────────────────────────────────────────────────────
-   FAILURE LAB
-─────────────────────────────────────────────────────────── */
-const FAILURES = [
-  { id:'crash',     icon:'power_off',     cls:'fi-crash',   title:'Crash Simulation',  desc:'Wipe in-memory state — prove replay restores it',           ep:'/simulate/crash',       body:null,                                      method:'POST' },
-  { id:'duplicate', icon:'content_copy',  cls:'fi-dup',     title:'Duplicate Events',  desc:'Inject a duplicate event_id — idempotency guard blocks it',  ep:'/simulate/duplicate',   body:a=>({account_id:a,amount:50}),            method:'POST' },
-  { id:'out-order', icon:'swap_vert',     cls:'fi-order',   title:'Out-of-Order',      desc:'Swap event order — ordering guard must reject it',           ep:'/simulate/out-of-order',body:a=>({account_id:a}),                      method:'POST' },
-  { id:'missing',   icon:'remove_circle', cls:'fi-missing', title:'Missing Event',     desc:'Skip event v1 — ordering gap detection kicks in',            ep:'/simulate/missing',     body:a=>({account_id:a}),                      method:'POST' },
-  { id:'corrupt',   icon:'dangerous',     cls:'fi-corrupt', title:'State Corruption',  desc:'Corrupt balance in-memory — prove replay restores correct',  ep:'/simulate/corruption',  body:a=>({account_id:a}),                      method:'POST' },
-  { id:'concurrent',icon:'multiple_stop', cls:'fi-concur',  title:'Concurrent Writes', desc:'5 threads race — OCC via EventStoreDB ensures exactly 1 wins',ep:'/simulate/concurrent', body:a=>({account_id:a,num_writers:5}),       method:'POST' },
-];
-
-function buildFailureCards() {
-  document.getElementById('failure-grid').innerHTML = FAILURES.map(f => `
-    <div class="failure-card" id="fc-${f.id}">
-      <div class="failure-card-header">
-        <div class="failure-icon ${f.cls}"><span class="material-icons">${f.icon}</span></div>
-        <div><div class="failure-title">${f.title}</div><div class="failure-desc">${f.desc}</div></div>
+    <button class="help-close" id="help-close"><span class="material-icons">close</span></button>
+  </div>
+  <div class="help-body">
+    <div class="help-section">
+      <div class="help-section-title">What is RewindDB?</div>
+      <div class="help-card">
+        <div class="help-card-title"><span class="material-icons">auto_awesome</span>The Core Concept</div>
+        <div class="help-card-desc">RewindDB implements <strong>event sourcing</strong>: no mutable state is ever stored. Every state is computed by replaying an immutable event log using <code>fold(events, S₀)</code>. This guarantees deterministic recovery from any failure.</div>
       </div>
-      <button class="btn btn-secondary" style="width:100%;justify-content:center;" id="fb-${f.id}" onclick="runFailure('${f.id}')">
-        <span class="material-icons">science</span> Inject
-      </button>
-      <div class="failure-result" id="fr-${f.id}"></div>
+      <div class="arch-diagram">
+        <div class="arch-node">Events[]</div><div class="arch-arrow">→</div>
+        <div class="arch-node">fold(E,S₀)</div><div class="arch-arrow">→</div>
+        <div class="arch-node green">State(t)</div><div class="arch-arrow">→</div>
+        <div class="arch-node sky">Validated ✓</div>
+      </div>
     </div>
-  `).join('');
-}
-
-/* BUG FIX: safe access to system_response */
-document.getElementById('failure-stream-select').addEventListener('change', async function () {
-  const v = this.value;
-  document.getElementById('failure-current-balance').textContent = v ? '…' : '—';
-  if (!v) return;
-  try {
-    const d = await apiCall('GET', `/queries/state/${v}`);
-    document.getElementById('failure-current-balance').textContent = fmtBal(d.balance);
-  } catch { document.getElementById('failure-current-balance').textContent = '—'; }
-});
-
-async function runFailure(id) {
-  const accountId = document.getElementById('failure-stream-select').value;
-  const f = FAILURES.find(x => x.id === id);
-  if (!f) return;
-  if (id !== 'crash' && !accountId) { toast('Select a target account first', 'error'); return; }
-
-  const btn = document.getElementById(`fb-${id}`);
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Running…'; }
-  const resultEl = document.getElementById(`fr-${id}`);
-  if (resultEl) { resultEl.className = 'failure-result'; }
-
-  try {
-    const body = f.body ? f.body(accountId) : null;
-    const d = await apiCall(f.method, f.ep, body);
-    const recovered = !!d.recovered;
-    const response  = d.system_response || (recovered ? 'Recovered successfully.' : 'Not recovered.');
-
-    if (resultEl) {
-      resultEl.className = `failure-result show ${recovered ? 'result-pass' : 'result-fail'}`;
-      const detailsHtml = d.details
-        ? '<br><br>' + Object.entries(d.details).map(([k,v]) => `<strong>${k}:</strong> ${JSON.stringify(v)}`).join('<br>')
-        : '';
-      resultEl.innerHTML = `<strong>${recovered ? '✓ RECOVERED' : '✗ NOT RECOVERED'}</strong><br/>${escHtml(response)}${detailsHtml}`;
-    }
-
-    appendFailureLog(d.scenario || f.title, response, recovered);
-    toast(`${f.title}: ${recovered ? 'recovered ✓' : 'not recovered ✗'}`, recovered ? 'success' : 'error');
-
-    // Refresh balance
-    if (accountId) {
-      try {
-        const s = await apiCall('GET', `/queries/state/${accountId}`);
-        document.getElementById('failure-current-balance').textContent = fmtBal(s.balance);
-      } catch {}
-    }
-  } catch (e) {
-    if (resultEl) {
-      resultEl.className = 'failure-result show result-fail';
-      resultEl.textContent = '✗ Request failed: ' + e.message;
-    }
-    toast('Error: ' + e.message, 'error');
-  }
-  if (btn) { btn.disabled = false; btn.innerHTML = '<span class="material-icons">science</span> Inject'; }
-}
-
-function appendFailureLog(scenario, response, recovered) {
-  const log = document.getElementById('failure-log');
-  const emptyState = log.querySelector('.empty-state');
-  if (emptyState) emptyState.remove();
-  const item = document.createElement('div');
-  item.className = `validation-item ${recovered ? 'vi-ok' : 'vi-error'}`;
-  const truncated = String(response).slice(0, 120) + (response.length > 120 ? '…' : '');
-  item.innerHTML = `
-    <span class="material-icons vi-icon">${recovered ? 'check_circle' : 'error'}</span>
-    <div>
-      <strong>${escHtml(String(scenario))}</strong> — ${escHtml(truncated)}
-      <br/><span style="opacity:.5;font-size:10px;">${new Date().toLocaleTimeString()}</span>
+    <div class="help-section">
+      <div class="help-section-title">Pages</div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">dashboard</span>Dashboard</div><div class="help-card-desc">Live overview of all accounts, balances, event counts, and system health. Recent Events shows the latest events with color-coded dots.</div></div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">history</span>Timeline</div><div class="help-card-desc">Full ordered event history for any stream. Click any event card to expand it and see the raw JSON payload. Filter pills let you focus on specific event types.</div></div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">play_circle</span>Replay Engine</div><div class="help-card-desc">Reconstruct state in two modes: Full Replay (every event from zero) or Snapshot-Assisted (delta only). Both produce identical validated state.</div></div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">biotech</span>Failure Lab</div><div class="help-card-desc">Inject real failures: crash, duplicate events, out-of-order, missing events, memory corruption, concurrent writes. Every test recovers deterministically.</div></div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">fact_check</span>Validation</div><div class="help-card-desc">Mathematical invariant checks: balance conservation, no negatives, event sequence integrity, cross-account transfer consistency.</div></div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">query_stats</span>Metrics</div><div class="help-card-desc">Animated SVG benchmark comparing full vs snapshot replay. Shows the performance advantage of snapshot-assisted mode with hover tooltips.</div></div>
     </div>
-  `;
-  log.prepend(item);
-}
+    <div class="help-section">
+      <div class="help-section-title">Keyboard Shortcuts</div>
+      <div class="help-shortcut-row"><span class="help-shortcut-action">Command Palette</span><span class="help-shortcut-keys"><span class="help-key">⌘</span><span class="help-key-sep">+</span><span class="help-key">K</span></span></div>
+      <div class="help-shortcut-row"><span class="help-shortcut-action">Navigate to page</span><span class="help-shortcut-keys"><span class="help-key">G</span><span class="help-key-sep">then</span><span class="help-key">D/T/R/F/V/M</span></span></div>
+      <div class="help-shortcut-row"><span class="help-shortcut-action">Refresh</span><span class="help-shortcut-keys"><span class="help-key">R</span></span></div>
+      <div class="help-shortcut-row"><span class="help-shortcut-action">Seed Data</span><span class="help-shortcut-keys"><span class="help-key">S</span></span></div>
+      <div class="help-shortcut-row"><span class="help-shortcut-action">Open this Help</span><span class="help-shortcut-keys"><span class="help-key">?</span></span></div>
+      <div class="help-shortcut-row"><span class="help-shortcut-action">Close any modal</span><span class="help-shortcut-keys"><span class="help-key">Esc</span></span></div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">Getting Started</div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">looks_one</span>Seed Demo Data</div><div class="help-card-desc">Click “Seed Demo Data” on the dashboard or press S to create 3 accounts with transaction histories.</div></div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">looks_two</span>Explore Events</div><div class="help-card-desc">Go to Timeline, select an account, click “Load Events”. Click any event to see its full JSON payload.</div></div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">looks_3</span>Replay &amp; Validate</div><div class="help-card-desc">Run a Replay to see state cards reconstructed from events. Then run Validation to confirm all invariants pass.</div></div>
+      <div class="help-card"><div class="help-card-title"><span class="material-icons">looks_4</span>Inject Failures</div><div class="help-card-desc">Go to Failure Lab, select an account, and inject any chaos scenario. Every test will recover — proving deterministic guarantees.</div></div>
+    </div>
+  </div>
+</div>
 
-/* ────────────────────────────────────────────────────────────
-   STATE VALIDATION
-─────────────────────────────────────────────────────────── */
-document.getElementById('btn-validate').addEventListener('click', async () => {
-  const btn = document.getElementById('btn-validate');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Validating…';
-  try {
-    const d = await apiCall('GET', '/queries/replay?mode=full');
-    const v = d.validation || {};
-    const accounts = Object.values(d.state.accounts || {});
-    const isValid = !!v.is_valid;
+<!-- ─── ONBOARDING TOAST ─────────────────────────── -->
+<div class="onboard-toast" id="onboard-toast">
+  <div class="onboard-step" id="onboard-step">1</div>
+  <div class="onboard-text" id="onboard-text">Welcome! Start by seeding demo data.</div>
+  <button class="onboard-action" id="onboard-action">Seed now →</button>
+  <button class="onboard-dismiss" id="onboard-dismiss">✕</button>
+</div>
 
-    document.getElementById('validation-summary').innerHTML = `
-      <div class="validation-item ${isValid ? 'vi-ok' : 'vi-error'}">
-        <span class="material-icons vi-icon">${isValid ? 'check_circle' : 'cancel'}</span>
-        <div>
-          <div style="font-size:15px;font-weight:700;">${isValid ? 'All Invariants Pass' : 'Violations Detected'}</div>
-          <div style="margin-top:6px;">Total balance: <span class="text-primary">${fmtBal(v.total_balance)}</span></div>
-          <div>Findings: ${v.finding_count ?? 0} issues</div>
-        </div>
-      </div>`;
-
-    const findings = v.findings || [];
-    document.getElementById('validation-findings').innerHTML = !findings.length
-      ? '<div class="validation-item vi-ok"><span class="material-icons vi-icon">check_circle</span>No findings — system state is valid</div>'
-      : findings.map(f => `<div class="validation-item vi-error"><span class="material-icons vi-icon">warning</span>${escHtml(f.message || JSON.stringify(f))}</div>`).join('');
-
-    document.getElementById('validation-accounts').innerHTML = !accounts.length
-      ? '<div class="empty-state">No accounts</div>'
-      : accounts.map(a => `
-          <div class="validation-item ${a.balance >= 0 ? 'vi-ok' : 'vi-error'}">
-            <span class="material-icons vi-icon">${a.balance >= 0 ? 'account_balance_wallet' : 'error'}</span>
-            <div>
-              <strong>${escHtml(a.owner)}</strong> <span class="mono" style="font-size:10px;opacity:.6">${a.account_id}</span><br/>
-              Balance: <span class="text-primary">${fmtBal(a.balance)}</span> · Events: ${a.event_count} · Status: ${a.status}
-            </div>
-          </div>`).join('');
-
-    toast('Validation complete', 'success');
-  } catch (e) { toast('Validation failed: ' + e.message, 'error'); }
-  btn.disabled = false; btn.innerHTML = '<span class="material-icons">verified</span> Run Validation';
-});
-
-/* ────────────────────────────────────────────────────────────
-   METRICS
-─────────────────────────────────────────────────────────── */
-document.getElementById('btn-bench').addEventListener('click', async () => {
-  const btn = document.getElementById('btn-bench');
-  const log = document.getElementById('bench-log');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Benchmarking…';
-  log.textContent = '> Running full replay…\n';
-
-  try {
-    const full = await apiCall('GET', '/queries/replay?mode=full');
-    const fm = full.metrics || {};
-    log.textContent += `  Full replay:     ${fmtMs(fm.duration_ms)} (${fm.events_processed} events)\n`;
-    document.getElementById('perf-full-ms').textContent = fmtMs(fm.duration_ms);
-
-    log.textContent += '\n> Running snapshot replay…\n';
-    const snap = await apiCall('GET', '/queries/replay?mode=snapshot');
-    const sm = snap.metrics || {};
-    log.textContent += `  Snapshot replay: ${fmtMs(sm.duration_ms)} (${sm.events_processed} events)\n`;
-    document.getElementById('perf-snap-ms').textContent = fmtMs(sm.duration_ms);
-
-    const speedup = (fm.duration_ms || 1) / (sm.duration_ms || 1);
-    const evPerMs = (fm.events_processed || 0) / (fm.duration_ms || 1);
-    log.textContent += `\n> Analysis:\n`;
-    log.textContent += `  Speedup (snapshot vs full): ${speedup.toFixed(2)}x\n`;
-    log.textContent += `  Events/ms (full): ${evPerMs.toFixed(2)}\n`;
-    log.textContent += `  Full validation:  ${full.validation?.is_valid ? 'PASS ✓' : 'FAIL ✗'}\n`;
-    log.textContent += `  Snap validation:  ${snap.validation?.is_valid ? 'PASS ✓' : 'FAIL ✗'}\n`;
-    log.textContent += `  Totals match:     ${full.validation?.total_balance === snap.validation?.total_balance ? 'YES ✓' : 'NO ✗'}\n`;
-
-    const maxMs = Math.max(fm.duration_ms || 0, sm.duration_ms || 0, 0.001);
-    document.getElementById('metric-bars').innerHTML = [
-      { label:'Full Replay',     val:fm.duration_ms || 0, max:maxMs, cls:'',     fmt:v=>fmtMs(v) },
-      { label:'Snapshot Replay', val:sm.duration_ms || 0, max:maxMs, cls:'teal', fmt:v=>fmtMs(v) },
-      { label:'Events Processed',val:fm.events_processed||0, max:(fm.events_processed||1), cls:'', fmt:v=>String(v) },
-    ].map(b => `
-      <div class="metric-bar-item">
-        <div class="metric-bar-header"><span class="metric-bar-label">${b.label}</span><span class="metric-bar-val">${b.fmt(b.val)}</span></div>
-        <div class="metric-bar-track"><div class="metric-bar-fill ${b.cls}" style="width:${Math.min(100,(b.val/b.max)*100)}%"></div></div>
-      </div>`).join('');
-
-    toast('Benchmarks complete', 'success');
-  } catch (e) {
-    log.textContent += `\n✗ Error: ${e.message}\n`;
-    toast('Benchmark failed: ' + e.message, 'error');
-  }
-  btn.disabled = false; btn.innerHTML = '<span class="material-icons">speed</span> Run Benchmarks';
-});
-
-/* ────────────────────────────────────────────────────────────
-   INIT
-─────────────────────────────────────────────────────────── */
-loadDashboard();
-</script>
+<script src="app.js"></script>
 </body>
 </html>
