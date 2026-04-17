@@ -645,7 +645,11 @@ setApi(API); // sync display on load
    HELPERS
 ─────────────────────────────────────────────────────────── */
 async function apiCall(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  const opts = { method, headers: { 
+    'Content-Type': 'application/json',
+    'X-Pinggy-No-Screen': 'true',
+    'ngrok-skip-browser-warning': 'true'
+  } };
   if (body !== undefined && body !== null) opts.body = JSON.stringify(body);
   const r = await fetch(getApi() + path, opts);
   if (!r.ok) {
