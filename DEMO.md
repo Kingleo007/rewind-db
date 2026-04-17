@@ -1,192 +1,65 @@
-# RewindDB — Judge Demo Guide
+# RewindDB — Ultimate Judge Demo Guide
 
-## Context
-Every step below is a live HTTP call. Use the Swagger UI at http://localhost:8000/docs.
-
----
-
-## Step 1: Seed Demo Data (30 seconds)
-
-```http
-POST /simulate/seed
-{
-  "num_accounts": 3,
-  "transactions_per_account": 4
-}
-```
-
-Expected output: 3 accounts created, deposits applied, cross-account transfer done.
+## 🎭 Context
+You will present using the **RewindDB Frontend Dashboard**. 
+* **If Offline/Local:** Go to `http://localhost:5500`
+* **If Online/Pinggy:** Go to your Vercel URL and configure the Pinggy Tunnel in the ⚙️ Settings.
 
 ---
 
-## Step 2: View the Event Log (Prove the append-only log)
-
-```http
-GET /queries/streams
-```
-→ Lists all `account-demo-*` streams.
-
-```http
-GET /queries/events/{account_id}
-```
-→ Shows the raw, immutable event log in sequence order.
-
-**Judge point:** Every entry has `event_id`, `version`, `occurred_at` — the full audit trail.
+## Step 1: The Blank Slate
+**Goal:** Show that the database is completely empty and no state is hardcoded.
+* **Action:** Show the Dashboard. Balances are $0.00. Events are 0.
+* **Talking Point:** "RewindDB does not store a `users` table or a `balances` table. State does not exist until we calculate it from history."
 
 ---
 
-## Step 3: Build State from Events
-
-```http
-GET /queries/state
-```
-→ Triggers a full replay. Response includes:
-- Current balances
-- `replay_source: "full"`
-- `duration_ms` — how long replay took
-
-**Judge point:** State is NOT stored. It is rebuilt fresh every time from the event log.
+## Step 2: Seed the Event Log (30 seconds)
+**Goal:** Create raw events that generate the state.
+* **Action:** Click the **Seed Demo Data** button on the Dashboard.
+* **Talking Point:** "We just fired a batch of events: `AccountCreated`, `MoneyDeposited`, and `MoneyTransferred`. If we navigate to the **Timeline** tab, you can see the raw, immutable ledger."
 
 ---
 
-## Step 4: Simulate a CRASH
-
-```http
-POST /simulate/crash
-```
-→ Deletes the in-memory snapshot. The system has "forgotten" everything.
-
-Now call state again:
-```http
-GET /queries/replay?mode=full
-```
-→ System rebuilds identical state from EventStoreDB. Compare balances — they match.
-
-**Judge point:** After crash, replay produces **byte-identical** output. Determinism proven.
+## Step 3: Replay Engine & Determinism
+**Goal:** Prove that the state is re-calculated in real-time.
+* **Action:** Go to the **Replay Engine** tab. Click **Run Full Replay**.
+* **Talking Point:** "Notice the duration in milliseconds. The system just read the entire history log and deterministically folded the events to recreate the exact account balances."
 
 ---
 
-## Step 5: Prove IDEMPOTENCY
-
-```http
-POST /simulate/duplicate
-{
-  "account_id": "{any_account_id}",
-  "amount": 100.0
-}
-```
-
-Expected response:
-```json
-{
-  "recovered": true,
-  "system_response": "Idempotency guard blocked duplicate — balance unchanged"
-}
-```
-
-**Judge point:** Sending the same money event 5 times does not change the balance.
+## Step 4: The Failure Lab — CRASH
+**Goal:** Prove that a system crash means nothing to an Event-Sourced system.
+* **Action:** Go to the **Failure Lab** tab. Click **Crash System**.
+* **Talking Point:** "We just deleted the in-memory state. In a traditional database, if the disk corrupted without a backup, data is gone. In RewindDB, simply go back to the Replay Engine and hit Replay. State is instantly restored pixel-perfect."
 
 ---
 
-## Step 6: Prove ORDERING GUARANTEES
-
-```http
-POST /simulate/out-of-order
-{
-  "account_id": "{any_account_id}"
-}
-```
-
-Expected response:
-```json
-{
-  "recovered": true,
-  "system_response": "OrderingViolation raised: Stream account-...: expected version 0, got 1..."
-}
-```
-
-**Judge point:** Swapped events are immediately rejected. The projector never applies events in wrong order.
+## Step 5: The Failure Lab — IDEMPOTENCY
+**Goal:** Prove that duplicate processing bugs can't steal money.
+* **Action:** In the **Failure Lab**, click **Inject Duplicate Event**.
+* **Talking Point:** "We just tried to process the exact same $100 deposit event twice. Our Projector's idempotency guard caught the exact `event_id` and skipped it. The math is protected."
 
 ---
 
-## Step 7: Prove STATE RECOVERY after CORRUPTION
-
-```http
-POST /simulate/corruption
-{
-  "account_id": "{any_account_id}"
-}
-```
-
-Expected response:
-```json
-{
-  "scenario": "state_corruption",
-  "injected": "Corrupted balance: 1650.00 → 11649.99",
-  "system_response": "Replay recovered correct balance: 1650.00",
-  "recovered": true
-}
-```
-
-**Judge point:** You can corrupt memory all you want. The event log is the source of truth. Replay always wins.
+## Step 6: The Failure Lab — CORRUPTION
+**Goal:** Prove that malicious memory modification is overwritten.
+* **Action:** In the **Failure Lab**, click **Corrupt Memory**.
+* **Talking Point:** "We injected a garbage balance of $11,649.99 into RAM. But because the event log is the only Source of Truth, the next time the state validates or replays, it immediately corrects the balance back to where it should be."
 
 ---
 
-## Step 8: Snapshot Performance
-
-```http
-GET /queries/replay?mode=full
-```
-Note the `duration_ms`.
-
-```http
-POST /simulate/crash
-GET /queries/replay?mode=snapshot
-```
-Note the `duration_ms` — it should be significantly lower.
-
-**Judge point:** Snapshot replay is faster because we skip already-processed events. Both produce identical state.
+## Step 7: The Failure Lab — CONCURRENCY (Race Conditions)
+**Goal:** Prove that concurrent threads can't violate rules.
+* **Action:** In the **Failure Lab**, click **Concurrent Writes**.
+* **Talking Point:** "We unleashed 5 parallel threads trying to manipulate the same account simultaneously. EventStoreDB's Optimistic Concurrency mechanism threw `WrongExpectedVersion` errors, allowing only the mathematically valid events to append. No race conditions."
 
 ---
 
-## Step 9: Validation Layer
-
-```http
-GET /queries/validate
-```
-
-Expected:
-```json
-{
-  "validation": {
-    "is_valid": true,
-    "findings": []
-  }
-}
-```
-
-**Judge point:** Post-replay validation confirms no invariants are broken (no negative balances, no orphaned state).
+## Step 8: State Validation
+**Goal:** Show post-replay invariant checks.
+* **Action:** Go to the **State Validation** tab and click **Run Validation**.
+* **Talking Point:** "Our validation engine scans the projected state mathematically. It proves there are no negative balances, zero orphaned events, and total system consistency."
 
 ---
-
-## Step 10: Time Travel (Bonus)
-
-```http
-GET /queries/replay?mode=full&until=2025-01-01T00:00:00
-```
-
-→ Rebuild state as it was at `2025-01-01`. Any events after that timestamp are ignored.
-
-**Judge point:** Because events carry timestamps, we can replay to any point in history.
-
----
-
-## Failure Scenarios Summary
-
-| Scenario | Injected | System Response | Recovered |
-|---|---|---|---|
-| Crash | Snapshot deleted | Full replay from EventStoreDB | ✅ |
-| Duplicate event | Same event_id applied 2x | Idempotency guard skips it | ✅ |
-| Out-of-order | Events swapped | OrderingViolation raised | ✅ |
-| Missing event | Version gap created | OrderingViolation raised | ✅ |
-| State corruption | Balance set to garbage | Replay restores correct value | ✅ |
+*End of Demo.*
