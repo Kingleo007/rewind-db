@@ -57,23 +57,39 @@ graph TD
 
 ---
 
-## 🚀 Live Demonstration (Zero Setup)
+## 🚀 Setup & Execution
 
-During the hackathon presentation, our setup is completely automated. To launch the entire live hybrid architecture (Local Database + Local Engine + Cloud Frontend):
+We have two ways to run the project. For the hackathon presentation, we use the **Zero Setup Demo** which automatically connects your local backend to the deployed Vercel frontend. For normal development, use the **Standard Local Run**.
 
-1. **Start the Backend Stack & Tunnel**
+### Option A: Hackathon Presentation (Zero Setup)
+This launches a hybrid architecture (Local Database & Engine + Cloud Frontend).
+
+1. **Start the Backend & Secure Tunnel**
    Make sure Docker Desktop is open, then run the all-in-one demo script:
    ```bash
    ./demo.sh
    ```
-   *This starts EventStoreDB, the FastAPI backend, and creates a secure public tunnel via Serveo. It will print a URL like `https://xxxx.serveo.net`.*
+   *This starts EventStoreDB, FastAPI, and a Serveo tunnel. It will print a URL like `https://xxxx.serveo.net`.*
 
-2. **Connect the Frontend**
+2. **Sync the Cloud Frontend**
    In a new terminal tab, run the auto-sync script with the URL you got from step 1:
    ```bash
    ./update-url.sh https://xxxx.serveo.net
    ```
-   *This automatically updates the frontend configuration, pushes to GitHub, and triggers a live Vercel deployment. Wait ~30 seconds, then open `https://rewind-db.vercel.app` and you are fully connected!*
+   *This updates the frontend, pushes to GitHub, and deploys to Vercel. Open `https://rewind-db.vercel.app` to see it live.*
+
+### Option B: Standard Local Development (No Tunnel)
+If you just want to run the project entirely on your local machine without exposing it to the internet:
+
+1. **Start the Local Engine**
+   ```bash
+   chmod +x start.sh
+   ./start.sh
+   ```
+   *This starts EventStoreDB on port 2113 and FastAPI on port 8001.*
+
+2. **Access the Frontend**
+   Simply open `frontend/index.html` directly in your browser or run a simple local server in the `frontend` folder. Click the **Gear ⚙️ Icon** in the bottom left to ensure the URL is set to `http://localhost:8001`.
 
 ---
 
