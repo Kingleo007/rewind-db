@@ -13,5 +13,5 @@ COPY backend/app/ ./app/
 ENV PORT=8080
 EXPOSE 8080
 
-# Start uvicorn using the shell-injected PORT
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# MUST use ["sh", "-c", "..."] so the shell expands $PORT
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
