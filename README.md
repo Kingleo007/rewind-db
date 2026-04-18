@@ -53,6 +53,8 @@ graph TD
     end
     
     Projector -->|Read / Append / Snapshot| ESDB[(EventStoreDB)]
+    Validator -->|Verify History| ESDB
+    Sim -->|Inject Anomalies| ESDB
 ```
 
 ---
