@@ -7,7 +7,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── CONFIG ───────────────────────────────────────────────── */
-const DEFAULT_API = 'https://7a5730d947669612-115-244-141-202.serveousercontent.com';
+const DEFAULT_API = 'https://add9e5b2016b90af-115-244-141-202.serveousercontent.com';
 let API = DEFAULT_API;
 localStorage.removeItem('rewinddb_api_url');
 
