@@ -57,33 +57,23 @@ graph TD
 
 ---
 
-## 🚀 Live Demonstration (Vercel + Tunnel)
+## 🚀 Live Demonstration (Zero Setup)
 
-During the hackathon presentation, we run a hybrid local-cloud architecture:
-*   The **Frontend Dashboard** is continuously deployed on Vercel.
-*   The **Backend Engine** runs securely on a local machine to eliminate latency during chaos tests.
-*   They are connected securely via a **Serveo** HTTPS tunnel.
+During the hackathon presentation, our setup is completely automated. To launch the entire live hybrid architecture (Local Database + Local Engine + Cloud Frontend):
 
-### How to Run Locally for Judges:
-
-1. **Start the Engine & Database**
-   Make sure Docker Desktop is open, then open a terminal in the project root:
+1. **Start the Backend Stack & Tunnel**
+   Make sure Docker Desktop is open, then run the all-in-one demo script:
    ```bash
-   chmod +x start.sh
-   ./start.sh
+   ./demo.sh
    ```
-   *This starts EventStoreDB on port `2113` and FastAPI on port `8001`.*
+   *This starts EventStoreDB, the FastAPI backend, and creates a secure public tunnel via Serveo. It will print a URL like `https://xxxx.serveo.net`.*
 
-2. **Expose the Engine via Serveo**  
-   Open a **new terminal tab** and establish a secure tunnel to expose the backend:
+2. **Connect the Frontend**
+   In a new terminal tab, run the auto-sync script with the URL you got from step 1:
    ```bash
-   ssh -o StrictHostKeyChecking=no -R 80:localhost:8001 serveo.net
+   ./update-url.sh https://xxxx.serveo.net
    ```
-   - Paste the `https://....serveousercontent.com` URL provided by the terminal command above.
-   - Open your deployed frontend: `https://rewind-db.vercel.app` *(Recommendation: Use an Incognito Window to ensure you bypass caching).*
-   - Click the **Gear ⚙️ Icon** to open the Settings modal.
-   - Paste the URL provided by the terminal command above.
-   - Click **Save & Reconnect**. The offline dot will turn Green.
+   *This automatically updates the frontend configuration, pushes to GitHub, and triggers a live Vercel deployment. Wait ~30 seconds, then open `https://rewind-db.vercel.app` and you are fully connected!*
 
 ---
 
