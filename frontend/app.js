@@ -7,7 +7,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── CONFIG ───────────────────────────────────────────────── */
-const DEFAULT_API = 'https://f4b32f4ddc31e7d3-115-244-141-202.serveousercontent.com';
+const DEFAULT_API = 'https://rewind-db-production.up.railway.app';
 let API = DEFAULT_API;
 localStorage.removeItem('rewinddb_api_url');
 
